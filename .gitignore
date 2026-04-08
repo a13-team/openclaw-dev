@@ -1,0 +1,56 @@
+# Editor
+.DS_Store
+._*
+.vscode/
+.idea/
+
+# Design files
+*.pen
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Node modules (if any)
+node_modules/
+
+# Python cache and virtual envs (if any)
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# QA generated reports
+plugins/qa/reports/
+
+# Generated platform directories (created by install.sh)
+.claude/
+.agents/
+.codex/
+.qwen/
+
+# Local config (contains personal paths)
+*.local.md
+.env
+.env.*
+
+# Security identity file (per-contributor, contains personal identifiers)
+.security-identities
+
+# Private keys and certificates
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Evolution signals (contains user paths, not for repo)
+data/signals.json
+data/signals.*.json
+
+# Plan docs (may contain personal info, paths, IPs)
+docs/plans/

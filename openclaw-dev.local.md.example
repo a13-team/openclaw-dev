@@ -1,0 +1,134 @@
+---
+openclaw:
+  workspace_path: "~/.openclaw/workspaces"
+  default_agent: "developer"
+
+plugin_defaults:
+  author_name: "Your Name"
+  author_email: "your.email@example.com"
+
+deployment:
+  openclaw_plugins_dir: "~/.openclaw/plugins"
+  claude_code_plugins_dir: "~/.claude/plugins"
+
+testing:
+  auto_validate: true
+  run_verification: true
+
+control_center_status: not_installed  # auto-detected by /status; do not edit manually
+
+gateways:
+  - name: control-center
+    host: 127.0.0.1
+    gateway_port: 18789
+
+  - name: home-mac
+    host: 192.168.1.100
+    gateway_port: 18789
+    ssh_port: 22
+    ssh_user: your-username
+    ssh_key: ~/.ssh/id_ed25519
+    gateway_token_env: HOME_MAC_GW_TOKEN
+    tags: [home, dev]
+
+  - name: cloud-server
+    host: 10.0.0.5
+    gateway_port: 18789
+    ssh_port: 22
+    ssh_user: root
+    gateway_token_env: CLOUD_GW_TOKEN
+    tags: [cloud, production]
+---
+
+# OpenClaw-Dev Local Configuration
+
+This file contains local configuration for the openclaw-dev plugin. Copy this to `.claude/openclaw-dev.local.md` and customize for your environment.
+
+## Configuration Fields
+
+### openclaw.workspace_path
+Path to OpenClaw workspaces directory. Used when deploying skills to agent workspaces.
+
+Default: `~/.openclaw/workspaces`
+
+### openclaw.default_agent
+Default agent ID to use when creating skills. Will be prompted if not set.
+
+Example: `developer`, `analyst`, `researcher`
+
+### plugin_defaults.author_name
+Your name to use in plugin.json manifests by default.
+
+### plugin_defaults.author_email
+Your email to use in plugin.json manifests by default.
+
+### deployment.openclaw_plugins_dir
+Where to deploy plugins for OpenClaw use.
+
+Default: `~/.openclaw/plugins`
+
+### deployment.claude_code_plugins_dir
+Where to deploy plugins for Claude Code use.
+
+Default: `~/.claude/plugins`
+
+### testing.auto_validate
+Automatically run validation after creating plugins/skills/agents.
+
+Default: `true`
+
+### testing.run_verification
+Run verification scripts after deployment.
+
+Default: `true`
+
+## Gateways Configuration
+
+Multi-Gateway management for `/diagnose`, `/status`, `/watch`.
+
+首次使用 `/watch` 连接远程 gateway 时，会自动检测 SSH 免密登录状态。如果需要密码认证，会引导你完成公钥部署（需要 sshpass），后续连接将自动免密。
+
+### control_center_status
+Auto-detected by `/status`. Values: `not_installed` | `installed`. Do not edit manually — cleared automatically when OpenClaw is installed via `/setup-node`.
+
+### gateways[].name
+Gateway alias, used as command argument (e.g., `/diagnose home-mac`).
+
+### gateways[].host
+IP address, hostname, Tailscale MagicDNS name, or SSH config alias.
+
+### gateways[].gateway_port
+OpenClaw Gateway port. Default: `18789`
+
+### gateways[].ssh_port
+SSH daemon port for remote connections. Default: `22`
+
+### gateways[].ssh_user
+SSH username for remote gateways. Required for non-local gateways.
+
+### gateways[].ssh_key
+Path to SSH private key. Default: system default.
+
+### gateways[].gateway_token_env
+Environment variable name containing the Gateway auth token. Never store tokens directly — use env vars.
+
+### gateways[].tags
+Optional tags for future grouping support (e.g., `[cloud, production]`).
+
+## Usage
+
+This configuration is read by openclaw-dev commands:
+- `/plugin` - Uses plugin_defaults for author info, gateways for remote operations
+- `/create-skill` - Uses openclaw.workspace_path and default_agent
+- `/deploy-skill` - Uses deployment paths
+- `/validate-plugin` - Uses testing.auto_validate setting
+- `/diagnose` - Uses gateways for remote diagnosis
+- `/status` - Uses gateways for remote status queries and caches control_center_status
+- `/watch` - Fleet 实时监控面板，持久化分屏界面实时查看远程节点状态
+
+## Notes
+
+- This file should be in `.gitignore` (contains local paths)
+- Settings are optional - commands will prompt if not configured
+- Paths support tilde expansion (`~` for home directory)
+- YAML frontmatter format for easy parsing

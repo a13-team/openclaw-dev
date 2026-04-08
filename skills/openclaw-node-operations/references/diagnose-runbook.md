@@ -1,0 +1,150 @@
+# 系统性诊断 Runbook
+
+按方法论系统分析 OpenClaw 运行状况，输出结构化报告，并将新发现沉淀到 fault-patterns.md。
+
+## 参数
+
+- **days** (可选): 分析时间范围，默认 7 天
+- **host** (可选): 远程 Gateway 地址 (通过 SSH)
+
+## 流程
+
+### 0. 确认执行环境
+
+⚠️ 每次执行前必须确认"你在哪台机器上"：
+```bash
+echo "🖥️ 当前: $(hostname) | $(whoami) | $(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')"
+```
+
+### 1. 定位日志
+
+```bash
+HOST="${host:-}"
+CMD="${HOST:+ssh -o IdentitiesOnly=yes -o ConnectTimeout=10 $HOST}"
+
+LOG_DIR=$($CMD bash -c 'echo ${OPENCLAW_LOG_DIR:-~/.openclaw/logs}')
+GATEWAY_LOG="$LOG_DIR/gateway.log"
+ERR_LOG="$LOG_DIR/gateway.err.log"
+
+$CMD test -f "$ERR_LOG" || echo "ERROR: $ERR_LOG not found"
+```
+
+### 2. 量化概览
+
+```bash
+DAYS="${days:-7}"
+SINCE=$(date -v-${DAYS}d '+%Y-%m-%d' 2>/dev/null || date -d "$DAYS days ago" '+%Y-%m-%d')
+
+TOTAL_LINES=$($CMD wc -l < "$ERR_LOG" | tr -d ' ')
+TOTAL_ERRORS=$($CMD grep -c "." "$ERR_LOG")
+UNHANDLED=$($CMD grep -c "UnhandledPromiseRejection\|unhandled" "$ERR_LOG")
+BAK_COUNT=$($CMD ls ~/.openclaw/openclaw.json.bak* 2>/dev/null | wc -l | tr -d ' ')
+```
+
+### 3. 六维分类
+
+读取 `log-analysis-methodology.md` 中的分类方法，执行:
+
+| 维度 | 命令 | 输出 |
+|------|------|------|
+| 网络 | `grep -c "fetch failed"` | 次数 + 每日分布 |
+| 配置 | `grep -c "invalid character\|config reload skipped"` | 次数 + 行号 |
+| 认证 | `grep -c "No API key\|401\|429"` | 次数 + provider |
+| 工具 | `grep "\[tools\]" \| sort \| uniq -c` | 按工具分类 |
+| 进程 | `grep -c "SIGTERM\|Gateway listening"` | 重启次数 + crash loop 检测 |
+| SSH/远程 | `grep -c "Host key verification\|Too many authentication\|Permission denied"` | 次数 + 目标 host |
+
+### 4. 模式匹配
+
+读取 `fault-patterns.md`，将分析结果与已知模式对比:
+
+```
+对每个已知模式:
+  搜索其 "签名" 关键词
+  如果命中 → 记录为 "已知故障 (有修复方案)"
+  如果未命中 → 跳过
+
+对未匹配的高频错误:
+  标记为 "未知模式 — 需要人工确认"
+```
+
+### 5. 输出诊断报告
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏥 OpenClaw 诊断报告
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📅 分析范围: <start> ~ <end> (<N> 天)
+📊 日志规模: <N> 行 (gateway.log) + <N> 行 (err.log)
+
+🔴 健康评分: <分数>/100
+
+📈 概览
+   总错误:       <N> 条
+   未处理异常:   <N> 次
+   Gateway 重启: <N> 次
+   配置备份:     <N> 个 (手动编辑频率指标)
+
+🔍 故障分类
+   ┌──────────┬──────┬────────┬──────────────────────────────┐
+   │ 维度     │ 数量 │ 严重度 │ 顶部错误                     │
+   ├──────────┼──────┼────────┼──────────────────────────────┤
+   │ 网络     │ <N>  │ 🔴/🟡/🟢 │ fetch failed: <N>           │
+   │ 配置     │ <N>  │ ...    │ invalid character: <N>       │
+   │ 认证     │ <N>  │ ...    │ No API key: <N>              │
+   │ 工具     │ <N>  │ ...    │ exec: <N>, browser: <N>      │
+   │ 进程     │ <N>  │ ...    │ crash loop: <Y/N>            │
+   │ SSH/远程 │ <N>  │ ...    │ host key: <N>, auth: <N>     │
+   └──────────┴──────┴────────┴──────────────────────────────┘
+
+🔗 已知模式命中
+   ✅ [fetch failed 暴增] — 网络/VPN 不稳定 → 见 fault-patterns.md
+   ✅ [JSON 语法错误] — line <N> → jq 修复
+   ❓ [未知模式] — "<新错误签名>" (需人工确认)
+
+💊 建议操作 (按优先级)
+   1. [P0] <最紧急的修复动作>
+   2. [P1] <次要修复>
+   3. [P2] <预防性建议>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### 6. 沉淀新发现
+
+如果发现 **fault-patterns.md 中没有的新模式**:
+
+1. 确认它不是已知模式的变体
+2. 向用户确认根因分析是否正确
+3. **追加到 fault-patterns.md**，格式:
+
+```markdown
+### [新模式名称]
+- **签名**: `[具体日志关键词]`
+- **根因**: [分析得出的根因]
+- **影响**: [影响范围]
+- **修复**: [修复步骤]
+- **预防**: [预防建议]
+- **首次发现**: [今天日期]
+```
+
+4. 提交变更:
+```bash
+cd <openclaw-dev-path>
+git add skills/openclaw-dev-knowledgebase/references/fault-patterns.md
+git commit -m "diagnose: add fault pattern — <模式名称>"
+```
+
+### 7. 健康评分计算
+
+```
+100 分基准，按以下扣分:
+
+每日错误 > 200:        -20
+fetch failed > 50/天:   -15
+配置解析失败 > 0:       -25 (可预防!)
+crash loop 存在:        -20
+工具失败率 > 15%:       -10
+.bak 增速 > 3/周:       -10
+```
