@@ -3,7 +3,7 @@
 # Windows PowerShell version (equivalent to install.sh)
 #
 # Install:
-#   git clone https://github.com/arctrany/openclaw-dev.git
+#   git clone https://github.com/a13-team/openclaw-dev.git
 #   cd openclaw-dev && .\install.ps1
 #
 # Update:

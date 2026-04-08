@@ -127,7 +127,7 @@ jobs:
             - openclaw-skill-development: Skill 开发 SOP
             - model-routing-governor: 模型路由策略
 
-            安装: git clone https://github.com/arctrany/openclaw-dev.git && cd openclaw-dev && bash install.sh
+            安装: git clone https://github.com/a13-team/openclaw-dev.git && cd openclaw-dev && bash install.sh
             更新: cd openclaw-dev && git pull && bash install.sh
             `.trim();
 
@@ -219,7 +219,7 @@ jobs:
                 question: `感谢提问！❓
 
             在等待回复的同时，您可以参考:
-            - 📖 [README](https://github.com/arctrany/openclaw-dev#readme)
+            - 📖 [README](https://github.com/a13-team/openclaw-dev#readme)
             - 安装验证: \`bash install.sh && for s in skills/openclaw-*/; do head -10 "$s/SKILL.md"; done\`
 
             Maintainer 会尽快跟进。`,

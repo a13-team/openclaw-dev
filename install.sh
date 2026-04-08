@@ -3,7 +3,7 @@
 # openclaw-dev — Install OpenClaw development skills to your code agents
 #
 # Install:
-#   git clone https://github.com/arctrany/openclaw-dev.git
+#   git clone https://github.com/a13-team/openclaw-dev.git
 #   cd openclaw-dev && bash install.sh
 #
 # Update:

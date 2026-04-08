@@ -35,7 +35,7 @@ AGENT_ROOTS = {
 }
 
 
-def collect_issues(repo="arctrany/openclaw-dev"):
+def collect_issues(repo="a13-team/openclaw-dev"):
     """Fetch open issues via gh CLI."""
     try:
         result = subprocess.run(
