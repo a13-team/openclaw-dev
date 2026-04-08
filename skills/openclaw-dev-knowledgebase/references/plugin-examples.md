@@ -1,14 +1,16 @@
-# OpenClaw Plugin 开发模式与故障排查
+# OpenClaw Plugin Development Patterns and Troubleshooting
 
-## Plugin 开发模式
+<!-- Updated: 2026-04-08 -->
 
-### 最小工具插件
+## Plugin Development Patterns
+
+### Minimal Tool Plugin
 
 ```typescript
 import { Type } from "@sinclair/typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
-// openclaw.plugin.json 需要至少包含:
+// openclaw.plugin.json needs at minimum:
 // { "id": "my-tool", "configSchema": { "type": "object", "additionalProperties": false, "properties": {} } }
 
 export default definePluginEntry({
@@ -32,7 +34,47 @@ export default definePluginEntry({
 });
 ```
 
-### Channel Onboarding Hook 模式
+### Channel Plugin Structure
+
+```typescript
+import { definePluginEntry } from "openclaw/plugin-sdk/channel-core";
+
+export default definePluginEntry({
+  id: "mychannel",
+  name: "MyChannel",
+  description: "Channel integration",
+  register(api) {
+    api.registerChannel({
+      plugin: createChatChannelPlugin({
+        id: "mychannel",
+        name: "MyChannel",
+        // ... channel configuration
+      }),
+    });
+  },
+});
+```
+
+### Provider Plugin Structure
+
+```typescript
+import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/core";
+
+export default defineSingleProviderPluginEntry({
+  id: "my-provider",
+  name: "My Provider",
+  description: "Custom model provider",
+  register(api) {
+    api.registerProvider({
+      id: "my-provider",
+      apiKey: process.env.MY_PROVIDER_API_KEY,
+      // ... provider configuration
+    });
+  },
+});
+```
+
+### Channel Onboarding Hook Pattern
 
 ```typescript
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -57,7 +99,7 @@ export default definePluginEntry({
 });
 ```
 
-### 多功能插件 (Tool + Hook + CLI)
+### Multi-Feature Plugin (Tool + Hook + CLI)
 
 ```typescript
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -88,61 +130,121 @@ export default definePluginEntry({
 });
 ```
 
+### Bundle Compatibility
+
+OpenClaw recognizes these bundle formats:
+
+#### Claude Bundle Structure
+```text
+my-bundle/
+├── .claude-plugin/
+│   └── plugin.json         # Optional
+├── skills/
+├── commands/
+├── agents/
+├── hooks/
+├── .mcp.json
+└── settings.json
+```
+
+#### Codex Bundle Structure
+```text
+my-bundle/
+├── .codex-plugin/
+│   └── plugin.json
+├── skills/
+├── hooks/
+├── .mcp.json
+└── .app.json
+```
+
+#### Cursor Bundle Structure
+```text
+my-bundle/
+├── .cursor-plugin/
+│   └── plugin.json
+├── skills/
+├── .cursor/commands/
+├── .cursor/agents/
+├── .cursor/rules/
+└── .mcp.json
+```
+
+### Skills Shipping via Plugin Manifest
+
+```json
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "skills": [
+    {
+      "name": "plugin-skill",
+      "dir": "./skills/plugin-skill"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
+```
+
 ---
 
-## 故障排查
+## Troubleshooting
 
-### Plugin 不加载
+### Plugin Not Loading
 
-| 症状 | 原因 | 修复 |
-|------|------|------|
-| `plugins list` 看不到 | 路径不在发现范围 | 检查 `plugins.load.paths` 或使用 `openclaw plugins install` |
-| 显示但 disabled | 默认禁用 / allowlist 未放行 | `openclaw plugins enable <id>` |
-| 显示但有 error | 加载异常 | `openclaw plugins doctor`，查看 Gateway 日志 |
-| 显示为 `Format: bundle` | 安装的是 Claude/Codex/Cursor bundle | 只验证受支持映射能力，不要按 native plugin 检查 |
-| ID 冲突 | 多个同 ID plugin | 更高优先级路径取胜，检查发现顺序 |
+| Symptom | Cause | Fix |
+|---------|--------|-----|
+| Not visible in `plugins list` | Path not in discovery scope | Check `plugins.load.paths` or use `openclaw plugins install` |
+| Shows but disabled | Default disabled / allowlist not approved | `openclaw plugins enable <id>` |
+| Shows but has error | Load exception | `openclaw plugins doctor`, check Gateway logs |
+| Shows as `Format: bundle` | Installed as Claude/Codex/Cursor bundle | Only verify supported mapped capabilities, don't check for native manifest |
+| ID conflict | Multiple plugins with same ID | Higher priority path wins, check discovery order |
 
-### 安装常见错误
+### Common Install Errors
 
-| 错误信息 | 原因 | 修复 |
-|---------|------|------|
-| `extension entry escapes package directory` | `openclaw.extensions` 指向目录或越出包目录 | 改为包内具体文件，如 `["./index.ts"]` |
-| `plugin manifest requires configSchema` | manifest 缺少 `configSchema` | 添加空 schema 或真实 schema |
-| `package.json missing openclaw.extensions` | 缺少 `openclaw` 字段 | 添加 `"openclaw": {"extensions": ["./index.ts"]}` |
-| `extracted package missing package.json` | 目录下没有 `package.json` | 创建 `package.json` 并声明 `openclaw.extensions` |
-| `plugin already exists` | 已有同 ID 的 plugin | 先卸载旧版本或清理旧安装记录 |
-| `loaded without install/load-path provenance` | 非正式安装流程 | 用 `openclaw plugins install` 重新安装 |
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `extension entry escapes package directory` | `openclaw.extensions` points to directory or escapes package | Change to specific file within package, e.g., `["./index.ts"]` |
+| `plugin manifest requires configSchema` | Manifest missing `configSchema` | Add empty schema or real schema |
+| `package.json missing openclaw.extensions` | Missing `openclaw` field | Add `"openclaw": {"extensions": ["./index.ts"]}` |
+| `extracted package missing package.json` | No `package.json` in directory | Create `package.json` and declare `openclaw.extensions` |
+| `plugin already exists` | Plugin with same ID already exists | Uninstall old version first or clean old install records |
+| `loaded without install/load-path provenance` | Non-standard install flow | Reinstall with `openclaw plugins install` |
 
-### 安装工作流（验证过的正确流程）
+### Verified Install Workflow
 
 ```bash
-# native plugin / compatible bundle 都用同一安装面
-openclaw plugins install -l /path/to/my-plugin   # 开发模式
-openclaw plugins install /path/to/my-plugin      # 复制安装
+# Native plugin / compatible bundle — same install surface
+openclaw plugins install -l /path/to/my-plugin   # Dev mode
+openclaw plugins install /path/to/my-plugin      # Copy install
 
-# 检查识别结果
+# Check recognition result
 openclaw plugins inspect my-plugin
 openclaw plugins inspect my-plugin --json
 ```
 
-### Entry Point 问题
+### Entry Point Issues
 
 ```bash
-# 检查 TypeScript 语法
+# Check TypeScript syntax
 npx tsc --noEmit index.ts
 
-# 检查默认导出
+# Check default export
 node -e "import('./index.ts').then(m => console.log(typeof m.default))"
 ```
 
-### 依赖问题
+### Dependency Issues
 
 ```bash
-# OpenClaw 使用 --ignore-scripts
+# OpenClaw uses --ignore-scripts
 npm install --ignore-scripts
 ```
 
-### Channel Plugin 调试
+### Channel Plugin Debug
 
 ```bash
 openclaw channels status --probe
@@ -150,7 +252,7 @@ jq '.channels.<id>' ~/.openclaw/openclaw.json
 openclaw gateway --verbose
 ```
 
-### 配置问题
+### Config Issues
 
 ```bash
 jq '.plugins' ~/.openclaw/openclaw.json

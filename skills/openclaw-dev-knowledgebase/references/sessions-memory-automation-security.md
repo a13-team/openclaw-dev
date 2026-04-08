@@ -1,26 +1,28 @@
-# OpenClaw 深度参考 — Sessions, Memory, Automation, Security
+# OpenClaw Deep Reference — Sessions, Memory, Automation, Security
 
-## Session (会话管理)
+<!-- Updated: 2026-04-08 -->
 
-### Session Key 映射
+## Sessions
 
-| 来源 | Key 格式 |
-|------|----------|
+### Session Key Mapping
+
+| Source | Key Format |
+|--------|-----------|
 | DM (default) | `agent:<agentId>:<mainKey>` |
 | DM (per-channel-peer) | `agent:<agentId>:<channel>:dm:<peerId>` |
 | DM (per-account-channel-peer) | `agent:<agentId>:<channel>:<accountId>:dm:<peerId>` |
-| 群聊 | `agent:<agentId>:<channel>:group:<id>` |
+| Group chat | `agent:<agentId>:<channel>:group:<id>` |
 | Cron | `cron:<jobId>` |
 | Webhook | `hook:<uuid>` |
 | Node | `node-<nodeId>` |
 
-### DM 隔离 (dmScope)
+### DM Isolation (dmScope)
 
 ```json5
 {
   session: {
-    dmScope: "per-channel-peer",  // 推荐多用户场景
-    // 跨 channel 合并同一人:
+    dmScope: "per-channel-peer",  // Recommended for multi-user scenarios
+    // Merge same person across channels:
     identityLinks: {
       alice: ["telegram:123", "discord:987654321"],
     },
@@ -28,24 +30,26 @@
 }
 ```
 
-⚠️ 默认 `main` — 所有 DM 共享 session。多人场景必须设 `per-channel-peer`。
+⚠️ Default `main` — all DMs share session. Multi-user scenarios must set `per-channel-peer`.
 
-### 生命周期
+### Lifecycle
 
-- **Daily reset**: 默认凌晨 4:00 (Gateway host 本地时间)
-- **Idle reset**: `session.reset.idleMinutes` (可选)
-- 两者同时设 → 谁先过期谁触发 reset
-- `/new` 或 `/reset` 手动重置
+- **Daily reset**: Default 4:00 AM (Gateway host local time)
+- **Idle reset**: `session.reset.idleMinutes` (optional)
+- Both set → whichever expires first triggers reset
+- `/new` or `/reset` for manual reset
 
-### 状态存储
+### State Storage
 
 ```
 ~/.openclaw/agents/<agentId>/sessions/
 ├── sessions.json          # session key → metadata
-└── <sessionId>.jsonl      # 完整对话记录
+└── <sessionId>.jsonl     # Complete conversation log
 ```
 
-### 维护
+Sessions stored as JSONL at: `~/.openclaw/agents/<agentId>/sessions/<SessionId>.jsonl`
+
+### Maintenance
 
 ```json5
 {
@@ -61,39 +65,50 @@
 }
 ```
 
-### 常用命令
+### Common Commands
 
 ```bash
-openclaw status                      # 概览
-openclaw sessions --json             # 所有 session
-openclaw sessions cleanup --dry-run  # 预览清理
-/status                              # 聊天中查状态
-/context list                        # 系统提示内容
-/compact                             # 手动压缩
-/stop                                # 终止当前 run
+openclaw status                      # Overview
+openclaw sessions --json             # All sessions
+openclaw sessions cleanup --dry-run  # Preview cleanup
+/status                              # Status in chat
+/context list                        # System prompt contents
+/compact                             # Manual compaction
+/stop                                # Stop current run
 ```
 
 ---
 
-## Memory (记忆系统)
+## Memory
 
-### 文件层
+### Memory Files
 
 ```
 workspace/
-├── memory/YYYY-MM-DD.md    # 每日记忆 (append-only)
-└── MEMORY.md               # 长期记忆 (仅 main session 加载)
+├── memory/YYYY-MM-DD.md    # Daily memory (append-only)
+└── MEMORY.md               # Long-term memory (only main session loads)
 ```
 
-- 决策/偏好/持久事实 → `MEMORY.md`
-- 日常笔记/上下文 → `memory/YYYY-MM-DD.md`
-- Session 开始自动读 today + yesterday
+- Decisions/preferences/persistent facts → `MEMORY.md`
+- Daily notes/context → `memory/YYYY-MM-DD.md`
+- Session start automatically reads today + yesterday
 
-### 自动 flush
+### Memory Backends
 
-Session 接近 compaction 时自动触发静默 turn，提醒 model 写记忆到磁盘。
+| Backend | Description |
+|---------|-------------|
+| `builtin` | SQLite storage (default) |
+| `qmd` | Local-first (BM25 + vectors + reranking) |
+| `honcho` | AI-native memory system |
 
-### 向量搜索
+### Dreaming (Experimental)
+
+Opt-in experimental feature for automatic memory promotion:
+- Scheduled via cron
+- Thresholded promotions to long-term memory
+- Diary stored in `DREAMS.md`
+
+### Vector Search
 
 ```json5
 {
@@ -117,61 +132,65 @@ Session 接近 compaction 时自动触发静默 turn，提醒 model 写记忆到
 }
 ```
 
-| 功能 | 说明 |
-|------|------|
-| **Hybrid** | BM25 (关键词) + Vector (语义) 融合 |
-| **MMR** | 去重，避免相似片段重复 |
-| **Temporal decay** | 旧记忆分数衰减 (半衰期 30d) |
-| **QMD** | 可选本地 sidecar (BM25+vectors+reranking) |
+| Feature | Description |
+|---------|-------------|
+| **Hybrid** | BM25 (keyword) + Vector (semantic) fusion |
+| **MMR** | Deduplication, avoid similar fragments repeating |
+| **Temporal decay** | Old memory scores decay (30-day half-life) |
+| **QMD** | Optional local sidecar (BM25+vectors+reranking) |
 
-### 工具
+### Tools
 
-- `memory_search` — 语义搜索 (snippets + file + line)
-- `memory_get` — 读指定文件/行范围
+- `memory_search` — semantic search (snippets + file + line)
+- `memory_get` — read specific file/line range
+
+### Auto Flush
+
+Session nearing compaction automatically triggers silent turn, reminding model to write memory to disk.
 
 ---
 
-## Automation (自动化)
+## Automation
 
 ### Cron Jobs
 
-Gateway 内建调度器。Jobs 持久化在 `~/.openclaw/cron/jobs.json`。
+Gateway built-in scheduler. Jobs persisted at `~/.openclaw/cron/jobs.json`.
 
-#### 两种执行模式
+#### Two Execution Modes
 
-| 模式 | Session | Payload | 场景 |
-|------|---------|---------|------|
-| **Main** | main session | systemEvent | 心跳中执行 |
-| **Isolated** | `cron:<jobId>` | agentTurn | 独立 turn，不影响主聊天 |
+| Mode | Session | Payload | Use Case |
+|------|---------|---------|----------|
+| **Main** | main session | systemEvent | Execute in heartbeat |
+| **Isolated** | `cron:<jobId>` | agentTurn | Independent turn, doesn't affect main chat |
 
-#### 快速创建
+#### Quick Create
 
 ```bash
-# 一次性提醒
+# One-time reminder
 openclaw cron add --name "Reminder" --at "20m" \
   --session main --system-event "Check calendar" --wake now
 
-# 定期查 isolated job + 投递到 WhatsApp
+# Regular isolated job + deliver to WhatsApp
 openclaw cron add --name "Morning brief" --cron "0 7 * * *" \
   --tz "America/Los_Angeles" --session isolated \
   --message "Summarize overnight updates." \
   --announce --channel whatsapp --to "+15551234567"
 
-# 带模型覆盖
+# With model override
 openclaw cron add --name "Deep analysis" --cron "0 6 * * 1" \
   --session isolated --model "opus" --thinking high \
   --message "Weekly analysis" --announce
 ```
 
-#### 投递模式
+#### Delivery Modes
 
-| delivery.mode | 行为 |
-|---------------|------|
-| `announce` | 投递到指定 channel (默认) |
-| `webhook` | POST 到 URL |
-| `none` | 仅内部执行 |
+| delivery.mode | Behavior |
+|---------------|----------|
+| `announce` | Deliver to specified channel (default) |
+| `webhook` | POST to URL |
+| `none` | Internal only |
 
-#### 管理
+#### Management
 
 ```bash
 openclaw cron list
@@ -182,27 +201,42 @@ openclaw cron runs --id <jobId>
 
 ### Heartbeat
 
-- `/heartbeat` 内部调度 (non-cron)
-- `HEARTBEAT.md` 定义心跳清单
-- `wakeMode: "now"` vs `"next-heartbeat"` 控制唤醒时机
+- `/heartbeat` internally scheduled (non-cron)
+- `HEARTBEAT.md` defines heartbeat checklist
+- `wakeMode: "now"` vs `"next-heartbeat"` controls wake timing
+- Default interval: ~30 minutes
+
+### Task Flow
+
+Durable orchestration for complex multi-step workflows:
+- Revision tracking
+- Persistent task state
+- Fallback chains
+
+### Standing Orders
+
+Persistent instructions in `AGENTS.md`:
+- Re-read on each session start
+- Survives compaction
+- Best for workflow rules and conventions
 
 ---
 
-## Security (安全)
+## Security
 
-### 信任模型
+### Trust Model
 
-**个人助手模型** — 每个 Gateway 一个信任边界。不支持敌对多租户。
+**Personal Assistant Model** — one trust boundary per Gateway. Does not support adversarial multi-tenancy.
 
-### 安全审计
+### Security Audit
 
 ```bash
-openclaw security audit          # 快速审计
-openclaw security audit --deep   # 深度 (含 Gateway 探针)
-openclaw security audit --fix    # 自动修复
+openclaw security audit          # Quick audit
+openclaw security audit --deep   # Deep (includes Gateway probe)
+openclaw security audit --fix    # Auto-fix
 ```
 
-### 加固基线 (60s)
+### Hardening Baseline (60s)
 
 ```json5
 {
@@ -224,53 +258,60 @@ openclaw security audit --fix    # 自动修复
 }
 ```
 
-### Credential 存储
+### Credential Storage
 
-| 路径 | 内容 |
-|------|------|
+| Path | Content |
+|------|---------|
 | `~/.openclaw/credentials/whatsapp/<account>/` | WhatsApp session |
 | `~/.openclaw/agents/<id>/agent/auth-profiles.json` | Model API keys |
-| `~/.openclaw/secrets.json` | 可选 file-backed secrets |
-| `~/.openclaw/openclaw.json` | 所有配置 (含 token) |
+| `~/.openclaw/secrets.json` | Optional file-backed secrets |
+| `~/.openclaw/openclaw.json` | All config (including tokens) |
 
-### 权限加固
+### Permission Hardening
 
 ```bash
 chmod 700 ~/.openclaw
 chmod 600 ~/.openclaw/openclaw.json
 ```
 
+### Exec Approvals
+
+Configure approval policy for exec commands:
+- `exec.security: "deny"` — block all exec by default
+- `exec.ask: "always"` — always ask for approval
+- Allowlist specific commands or agents
+
 ---
 
-## Sandboxing (沙盒)
+## Sandboxing
 
-可选 Docker 容器隔离。Gateway 留在 host，工具在容器中执行。
+Optional Docker container isolation. Gateway stays on host, tools execute in containers.
 
-### 模式
+### Modes
 
-| mode | 说明 |
-|------|------|
-| `off` | 无沙盒 |
-| `non-main` | 仅非 main session |
-| `all` | 所有 session |
+| mode | Description |
+|------|-------------|
+| `off` | No sandbox |
+| `non-main` | Non-main sessions only |
+| `all` | All sessions |
 
 ### Scope
 
-| scope | 容器 |
-|-------|------|
-| `session` | 每 session 一个 |
-| `agent` | 每 agent 一个 |
-| `shared` | 所有共享一个 |
+| scope | Container |
+|-------|-----------|
+| `session` | One per session |
+| `agent` | One per agent |
+| `shared` | All share one |
 
-### Workspace 访问
+### Workspace Access
 
-| workspaceAccess | 行为 |
-|-----------------|------|
-| `none` | 沙盒独立 workspace |
-| `ro` | 只读挂载 agent workspace 到 `/agent` |
-| `rw` | 读写挂载到 `/workspace` |
+| workspaceAccess | Behavior |
+|----------------|----------|
+| `none` | Sandboxes have independent workspace |
+| `ro` | Read-only mount agent workspace to `/agent` |
+| `rw` | Read-write mount to `/workspace` |
 
-### 最小配置
+### Minimal Config
 
 ```json5
 {
@@ -289,19 +330,43 @@ chmod 600 ~/.openclaw/openclaw.json
 ### Setup
 
 ```bash
-scripts/sandbox-setup.sh          # 构建沙盒镜像
-scripts/sandbox-browser-setup.sh  # 构建浏览器沙盒
+scripts/sandbox-setup.sh          # Build sandbox image
+scripts/sandbox-browser-setup.sh  # Build browser sandbox
 ```
 
-### 调试
+### Debug
 
 ```bash
-openclaw sandbox explain  # 查看生效的沙盒模式和策略
+openclaw sandbox explain  # View active sandbox mode and policies
 ```
 
-### 注意
+### Notes
 
-- 默认容器**无网络** (`network: "none"`)
-- `setupCommand` 需要网络和 root
-- `tools.elevated` 绕过沙盒直接在 host 执行
-- `network: "host"` 被禁止
+- Default containers have **no network** (`network: "none"`)
+- `setupCommand` needs network and root
+- `tools.elevated` bypasses sandbox to execute directly on host
+- `network: "host"` is forbidden
+
+---
+
+## Hooks
+
+Lifecycle event hooks for extensibility:
+
+| Hook | Trigger |
+|------|---------|
+| `before_model_resolve` | Before model is selected |
+| `before_prompt_build` | Before prompt is assembled |
+| `before_agent_start` | Before agent starts |
+| `before_agent_reply` | Before agent reply is sent |
+| `agent_end` | After agent completes |
+| `before_tool_call` | Before tool execution |
+| `after_tool_call` | After tool execution |
+| `tool_result_persist` | After tool result storage |
+| `message_received` | When message arrives |
+| `message_sending` | Before message is sent |
+| `message_sent` | After message is sent |
+| `session_start` | When session starts |
+| `session_end` | When session ends |
+| `before_compaction` | Before session compaction |
+| `after_compaction` | After session compaction |

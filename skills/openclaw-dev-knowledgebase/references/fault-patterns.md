@@ -1,208 +1,280 @@
-# OpenClaw 故障模式库 (活文档)
+# OpenClaw Fault Patterns Library (Living Document)
 
-> **本文件是活文档。** Agent 每次诊断发现新模式后，应追加到对应分类下。
-> 格式: 签名 → 根因 → 修复 → 预防。
+<!-- Updated: 2026-04-08 -->
 
----
-
-## 网络层故障
-
-### fetch failed 暴增
-- **签名**: `TypeError: fetch failed` 单日 > 100 次
-- **关联签名**: `ERR_ASSERTION: Reached illegal state! IPV4 address change`
-- **根因**: 网络接口不稳定 —— WiFi 断连、VPN/Clash 客户端重启、外接硬盘断开导致 node 不可用
-- **影响**: 所有出站 HTTP 请求失败，Agent 完全无法调用 LLM API
-- **修复**: 
-  1. `ifconfig | grep "inet "` 检查网络接口
-  2. 检查 VPN/代理状态
-  3. 如果 node 在外接硬盘: `which node` → 确认路径可用
-- **预防**: node 安装到本机系统盘，不放外接硬盘
-- **首次发现**: 2026-01-30 (5,330 次/天)
-
-### DNS 被代理劫持
-- **签名**: `resolves to private/internal/special-use IP address`
-- **根因**: VPN/Clash 代理将公共域名 DNS 解析到本地代理 IP，OpenClaw 安全策略拒绝连接私有 IP
-- **影响**: `web_fetch` 工具对所有公共 URL 失败
-- **修复**:
-  1. `dig google.com` → 如果返回 127.x 或 10.x → 代理劫持
-  2. 临时关闭代理的 DNS 劫持功能
-  3. 或将 OpenClaw 的 URL 安全策略设为允许代理 IP
-- **预防**: 配置代理 bypass 列表包含 OpenClaw 常用域名
-- **首次发现**: 2026-02-26 (38 次)
+> **This is a living document.** Agents should append new patterns discovered during diagnosis to the appropriate category.
+> Format: Signature → Root Cause → Fix → Prevention.
 
 ---
 
-## 配置层故障
+## Network Layer Failures
 
-### JSON 语法错误
-- **签名**: `invalid character` + 行号 + `config reload skipped`
-- **根因**: 手动编辑 `openclaw.json` 引入语法错误 (多余逗号、非法引号、缺少括号)
-- **影响**: 配置热加载跳过 → Agent 读不到 API key → 所有任务终止
-- **修复**:
-  1. `jq . ~/.openclaw/openclaw.json` → 看错误行号
-  2. 修复语法错误
-  3. 或从最近的 `.bak` 恢复: `ls -lt ~/.openclaw/openclaw.json.bak* | head -1`
-- **预防**: 每次编辑前 `cp openclaw.json openclaw.json.bak-$(date +%Y%m%d-%H%M%S)`，编辑后 `jq . openclaw.json > /dev/null`
-- **首次发现**: 2026-02-04 (706 次, line 193 逗号错误)
-- **复发**: 2026-02-12 (5,347 次, line 763 引号错误)
+### fetch failed Spike
+- **Signature**: `TypeError: fetch failed` > 100 times/day
+- **Associated Signature**: `ERR_ASSERTION: Reached illegal state! IPV4 address change`
+- **Root Cause**: Unstable network interface — WiFi disconnection, VPN/Clash client restart, external drive disconnect causing node unavailable
+- **Impact**: All outbound HTTP requests fail, Agent completely unable to call LLM API
+- **Fix**:
+  1. `ifconfig | grep "inet "` check network interfaces
+  2. Check VPN/proxy status
+  3. If node on external drive: `which node` → confirm path available
+- **Prevention**: Install node on system drive, not external drives
+- **First Found**: 2026-01-30 (5,330 times/day)
 
-### API Key 丢失
-- **签名**: `No API key found for provider` + `Configure auth for this agent`
-- **根因**: 通常是配置损坏的级联效应，也可能是 auth-profiles.json 被误删
-- **影响**: 特定 Agent 无法调用 LLM
-- **修复**:
-  1. 先检查配置是否损坏: `jq . ~/.openclaw/openclaw.json`
-  2. 检查 auth profile: `cat ~/.openclaw/agents/<id>/agent/auth-profiles.json`
-  3. 重新配置: `openclaw agents add <id>`
-- **首次发现**: 2026-02-04
-
----
-
-## 进程层故障
-
-### Gateway crash loop
-- **签名**: 10 分钟内 3+ 次 `Gateway listening` / PID 变化
-- **关联签名**: PID 间隔 < 60 秒, PID 溢出回绕 (如从 88570 跳到 3018)
-- **根因**: 启动即崩溃，LaunchAgent KeepAlive 不断重启
-  - 常见触发: node 二进制不可用 (外接硬盘)、端口被占用、配置严重损坏
-- **影响**: 系统资源消耗、日志暴增、进程表爆炸
-- **修复**:
-  1. `launchctl unload ~/Library/LaunchAgents/openclaw-gateway*.plist` 先停止
-  2. 检查 node 路径: `which node` → 不应在 `/Volumes/`
-  3. 检查端口: `lsof -i :18789`
-  4. 手动启动看错误: `openclaw gateway --port 18789`
-- **预防**:
-  - node 安装在系统盘
-  - LaunchAgent 增加 `ThrottleInterval` ≥ 120
-  - 配置 `bind: "loopback"` (不用 `0.0.0.0`)
-- **首次发现**: 2026-02-02 (20+ 次重启, 10 秒级间隔)
+### DNS Hijacked by Proxy
+- **Signature**: `resolves to private/internal/special-use IP address`
+- **Root Cause**: VPN/Clash proxy redirects public domain DNS to local proxy IP, OpenClaw security policy rejects private IP connections
+- **Impact**: `web_fetch` tool fails for all public URLs
+- **Fix**:
+  1. `dig google.com` → if returns 127.x or 10.x → proxy hijacking
+  2. Temporarily disable proxy DNS hijacking
+  3. Or set OpenClaw URL security policy to allow proxy IPs
+- **Prevention**: Configure proxy bypass list to include OpenClaw common domains
+- **First Found**: 2026-02-26 (38 times)
 
 ---
 
-## 工具层故障
+## Configuration Layer Failures
 
-### Browser 未 attach
-- **签名**: `no tab is connected` / `attachOnly not running`
-- **根因**: Agent 尝试使用浏览器工具，但用户没有在 Chrome 中激活 OpenClaw 扩展
-- **影响**: browser 工具调用失败
-- **修复**: 提示用户打开 Chrome → 点击 OpenClaw 扩展 → attach 标签页
-- **预防**: Agent 在使用 browser 前先检查连接状态
-- **首次发现**: 2026-02 (25 次)
+### JSON Syntax Error
+- **Signature**: `invalid character` + line number + `config reload skipped`
+- **Root Cause**: Manual editing of `openclaw.json` introduced syntax error (extra comma, illegal quotes, missing brackets)
+- **Impact**: Config hot-reload skipped → Agent can't read API key → all tasks terminate
+- **Fix**:
+  1. `jq . ~/.openclaw/openclaw.json` → see error line
+  2. Fix syntax error
+  3. Or restore from recent `.bak`: `ls -lt ~/.openclaw/openclaw.json.bak* | head -1`
+- **Prevention**: Before editing `cp openclaw.json openclaw.json.bak-$(date +%Y%m%d-%H%M%S)`, after editing `jq . openclaw.json > /dev/null`
+- **First Found**: 2026-02-04 (706 times, line 193 comma error)
+- **Recurrence**: 2026-02-12 (5,347 times, line 763 quote error)
 
-### Workspace 沙箱写入被阻止
-- **签名**: `sandbox` + 写入路径 + `denied`
-- **根因**: workspace sandbox.mode 只允许根目录写入，不允许创建子目录
-- **影响**: Agent 无法在 workspace 内创建新目录/文件
-- **修复**: 检查 `openclaw.json` 中 agent 的 `sandbox.mode`，改为 `lenient` 或调整 `sandbox.allowPaths`
-- **首次发现**: 2026-02-28
+### API Key Lost
+- **Signature**: `No API key found for provider` + `Configure auth for this agent`
+- **Root Cause**: Usually cascade effect of config corruption, or auth-profiles.json accidentally deleted
+- **Impact**: Specific Agent unable to call LLM
+- **Fix**:
+  1. First check if config corrupted: `jq . ~/.openclaw/openclaw.json`
+  2. Check auth profile: `cat ~/.openclaw/agents/<id>/agent/auth-profiles.json`
+  3. Re-configure: `openclaw agents add <id>`
+- **First Found**: 2026-02-04
 
-### Env override 被安全策略阻止
-- **签名**: `[env-overrides] Blocked skill env overrides`
-- **根因**: Skill 试图通过环境变量覆盖注入 API key (如 FISH_AUDIO_API_KEY)，被安全策略阻止
-- **影响**: 依赖环境变量的 skill 无法正常工作
-- **修复**: 在 `openclaw.json` 中配置 `skills.envOverrides.allow` 列表
-- **首次发现**: 2026-02-27
+### Refusing to Bind Gateway Without Auth
+- **Signature**: `refusing to bind gateway ... without auth` (non-loopback without valid auth)
+- **Root Cause**: Gateway configured to listen on non-loopback address without valid auth token configured
+- **Impact**: Gateway refuses to start, binding fails
+- **Fix**:
+  1. Set `bind: "loopback"` or configure valid auth token
+  2. For remote access, use Tailscale instead of public IP
+- **Prevention**: Use loopback bind for local-only access
+- **First Found**: 2026-04-08 (new pattern)
+
+### EADDRINUSE (Port Conflict)
+- **Signature**: `EADDRINUSE: address already in use :::18789`
+- **Root Cause**: Old Gateway process didn't exit, other application占用, or multi-profile port conflict
+- **Impact**: Gateway unable to start, onboard last step fails
+- **Fix**:
+  1. `lsof -i :18789` find占用 process
+  2. `kill <PID>` or `openclaw gateway stop`
+  3. Or change port: `openclaw gateway --port 19000`
+- **Prevention**: Before onboard, confirm port is free with `lsof -i :18789`
+- **First Found**: 2026-02-28
+
+### Gateway Start Blocked: Set gateway.mode=local
+- **Signature**: `gateway start blocked: set gateway.mode=local` (remote mode config error)
+- **Root Cause**: Gateway configured with `mode: "remote"` but trying to start as local server
+- **Impact**: Gateway fails to start
+- **Fix**:
+  1. Check `openclaw.json` gateway configuration
+  2. Set `gateway.mode: "local"` or remove remote configuration
+  3. Or set proper remote URL if remote mode intended
+- **Prevention**: Match gateway mode to intended use case
+- **First Found**: 2026-04-08 (new pattern)
+
+### Unauthorized During Connect
+- **Signature**: `unauthorized during connect` (auth mismatch)
+- **Root Cause**: Auth token mismatch between client and Gateway
+- **Impact**: Client cannot connect to Gateway
+- **Fix**:
+  1. Check `gateway.auth.token` in config matches client's expected token
+  2. Re-run onboard to regenerate auth credentials
+  3. Verify client connecting to correct Gateway instance
+- **Prevention**: Consistent auth configuration across client and server
+- **First Found**: 2026-04-08 (new pattern)
 
 ---
 
-## Onboarding 阶段故障
+## Process Layer Failures
 
-### Node.js 版本不兼容
-- **签名**: `Unsupported Node.js version` / `engine "node" is incompatible`
-- **根因**: 系统自带或 brew 安装的 Node.js 版本过老 (< 22)
-- **影响**: 安装失败或 Gateway 无法启动
-- **修复**: `node -v` 检查版本; 安装 Node 22+: `brew install node@22` 或 `nvm install 22`
-- **预防**: `install.sh` 会自动安装 Node 22，手动安装时注意版本
-- **首次发现**: 2026-02-28
-
-### Port 18789 被占用
-- **签名**: `EADDRINUSE: address already in use :::18789`
-- **根因**: 旧 Gateway 进程未退出、其他应用占用、或多 profile 端口冲突
-- **影响**: Gateway 无法启动，onboard 最后一步失败
-- **修复**:
-  1. `lsof -i :18789` 找到占用进程
-  2. `kill <PID>` 或 `openclaw gateway stop`
-  3. 或换端口: `openclaw gateway --port 19000`
-- **预防**: onboard 前先 `lsof -i :18789` 确认端口空闲
-- **首次发现**: 2026-02-28
-
-### API Key 无效/过期
-- **签名**: `401 Unauthorized` / `Invalid API key` / `No API key found for provider`
-- **根因**: 粘贴 key 时多了空格/换行、key 被 revoke、或选错 provider
-- **影响**: Gateway 运行但 Agent 无法回复消息
-- **修复**:
-  1. `openclaw models status` 检查 auth 状态
-  2. 重新配置: `openclaw configure` → 重新输入 API key
-  3. 在 provider 后台 (console.anthropic.com) 确认 key 有效
-- **预防**: 粘贴后 `openclaw health` 立即验证
-- **首次发现**: 2026-02-28
-
-### Onboard 中途断开
-- **签名**: 部分配置写入但 Gateway 未安装
-- **根因**: 终端意外关闭、SSH 断连、Ctrl+C 中断
-- **影响**: 配置文件不完整，Gateway 不启动
-- **修复**: 重新运行 `openclaw onboard --install-daemon` (幂等，会跳过已完成步骤)
-- **预防**: 使用 `tmux` 或 `screen` 在远程机器上运行 onboard
-- **首次发现**: 2026-02-28
+### Gateway Crash Loop
+- **Signature**: 3+ `Gateway listening` / PID changes within 10 minutes
+- **Associated Signature**: PID interval < 60 seconds, PID overflow wrap (e.g., from 88570 to 3018)
+- **Root Cause**: Startup crash, LaunchAgent KeepAlive keeps restarting
+  - Common triggers: node binary unavailable (external drive), port occupied, severe config corruption
+- **Impact**: System resource consumption, log explosion, process table explosion
+- **Fix**:
+  1. `launchctl unload ~/Library/LaunchAgents/openclaw-gateway*.plist` to stop first
+  2. Check node path: `which node` → should not be on `/Volumes/`
+  3. Check port: `lsof -i :18789`
+  4. Manual start to see error: `openclaw gateway --port 18789`
+- **Prevention**:
+  - Install node on system drive
+  - LaunchAgent add `ThrottleInterval` ≥ 120
+  - Configure `bind: "loopback"` (not `0.0.0.0`)
+- **First Found**: 2026-02-02 (20+ restarts, 10-second intervals)
 
 ---
 
-## SSH / 远程连接层故障
+## Plugin Layer Failures
 
-### Host key verification failed
-- **签名**: `Host key verification failed` / `REMOTE HOST IDENTIFICATION HAS CHANGED`
-- **根因**: 目标机器重装系统、IP 复用、或 Tailscale IP 变更后 `~/.ssh/known_hosts` 中的指纹不匹配
-- **影响**: SSH 连接被客户端拒绝，所有远程操作 (deploy-skill, diagnose 等) 全部失败
-- **修复**:
-  1. `ssh-keygen -R <host-ip>` 精准删除旧指纹 (不要删整个 known_hosts)
-  2. 重新连接并确认新指纹: `ssh -o StrictHostKeyChecking=ask user@host`
-- **预防**: 重装系统后主动通知所有客户端更新指纹; 记录各节点公钥指纹到运维文档
-- **首次发现**: 2026-02-28
+### Plugin Load Errors
+- **Signature**: Plugin fails to load with errors in Gateway logs
+- **Root Cause**: Plugin manifest invalid, missing dependencies, or version incompatibility
+- **Impact**: Plugin functionality unavailable
+- **Fix**:
+  1. Run `openclaw plugins doctor` to diagnose
+  2. Check plugin manifest `openclaw.plugin.json` for errors
+  3. Verify plugin version compatibility
+  4. Reinstall plugin if needed
+- **Prevention**: Test plugins in dev environment before production deployment
+- **First Found**: 2026-04-08 (new pattern)
 
-### Too many authentication failures
-- **签名**: `Too many authentication failures` / `Received disconnect from ... Too many authentication failures`
-- **根因**: SSH agent 中加载了过多密钥 (3-5 个以上)，客户端逐个尝试直到服务器断开连接 (默认 `MaxAuthTries=6`)
-- **影响**: 即使正确密钥存在也无法登录，常与 Host key 报错混杂导致排查方向被干扰
-- **修复**:
-  1. 客户端连接时强制指定单密钥: `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 user@host`
-  2. 或在 `~/.ssh/config` 中配置:
+### Config Validation Failure
+- **Signature**: Config validation errors during Gateway startup
+- **Root Cause**: Invalid values in `openclaw.json` (wrong types, missing required fields)
+- **Impact**: Gateway fails to start or behaves incorrectly
+- **Fix**:
+  1. Run `openclaw doctor --fix` to auto-fix common issues
+  2. Manually review config for invalid values
+  3. Restore from backup if needed
+- **Prevention**: Use `openclaw doctor` regularly to catch config issues early
+- **First Found**: 2026-04-08 (new pattern)
+
+---
+
+## Tool Layer Failures
+
+### Browser Not Attached
+- **Signature**: `no tab is connected` / `attachOnly not running`
+- **Root Cause**: Agent tries to use browser tool but user hasn't activated OpenClaw extension in Chrome
+- **Impact**: Browser tool calls fail
+- **Fix**: Prompt user to open Chrome → click OpenClaw extension → attach tab
+- **Prevention**: Agent checks connection status before using browser
+- **First Found**: 2026-02 (25 times)
+
+### Workspace Sandbox Write Blocked
+- **Signature**: `sandbox` + write path + `denied`
+- **Root Cause**: Workspace sandbox.mode only allows root directory writes, no subdirectory creation
+- **Impact**: Agent unable to create new directories/files in workspace
+- **Fix**: Check `openclaw.json` agent `sandbox.mode`, change to `lenient` or adjust `sandbox.allowPaths`
+- **First Found**: 2026-02-28
+
+### Env Override Blocked by Security Policy
+- **Signature**: `[env-overrides] Blocked skill env overrides`
+- **Root Cause**: Skill trying to inject API key via environment variable (e.g., FISH_AUDIO_API_KEY), blocked by security policy
+- **Impact**: Skills depending on environment variables don't work
+- **Fix**: Configure `skills.envOverrides.allow` list in `openclaw.json`
+- **First Found**: 2026-02-27
+
+---
+
+## Onboarding Layer Failures
+
+### Node.js Version Incompatible
+- **Signature**: `Unsupported Node.js version` / `engine "node" is incompatible`
+- **Root Cause**: System-provided or brew-installed Node.js version too old (< 22)
+- **Impact**: Install fails or Gateway unable to start
+- **Fix**: `node -v` check version; install Node 22+: `brew install node@22` or `nvm install 22`
+- **Prevention**: `install.sh` auto-installs Node 22, pay attention to version during manual install
+- **First Found**: 2026-02-28
+
+### Port 18789 Occupied
+- **Signature**: `EADDRINUSE: address already in use :::18789`
+- **Root Cause**: Old Gateway process didn't exit, other application占用, or multi-profile port conflict
+- **Impact**: Gateway unable to start, onboard last step fails
+- **Fix**:
+  1. `lsof -i :18789` find占用 process
+  2. `kill <PID>` or `openclaw gateway stop`
+  3. Or change port: `openclaw gateway --port 19000`
+- **Prevention**: Before onboard, confirm port is free
+- **First Found**: 2026-02-28
+
+### API Key Invalid/Expired
+- **Signature**: `401 Unauthorized` / `Invalid API key` / `No API key found for provider`
+- **Root Cause**: Key pasted with extra spaces/newlines, key revoked, or wrong provider selected
+- **Impact**: Gateway running but Agent unable to reply to messages
+- **Fix**:
+  1. `openclaw models status` check auth status
+  2. Re-configure: `openclaw configure` → re-enter API key
+  3. Confirm key is valid in provider backend (console.anthropic.com)
+- **Prevention**: After pasting, immediately verify with `openclaw health`
+- **First Found**: 2026-02-28
+
+### Onboard Disconnected Mid-Way
+- **Signature**: Partial config written but Gateway not installed
+- **Root Cause**: Terminal unexpectedly closed, SSH disconnect, Ctrl+C interrupt
+- **Impact**: Config file incomplete, Gateway doesn't start
+- **Fix**: Re-run `openclaw onboard --install-daemon` (idempotent, skips completed steps)
+- **Prevention**: Use `tmux` or `screen` when running onboard on remote machine
+- **First Found**: 2026-02-28
+
+---
+
+## SSH / Remote Connection Layer Failures
+
+### Host Key Verification Failed
+- **Signature**: `Host key verification failed` / `REMOTE HOST IDENTIFICATION HAS CHANGED`
+- **Root Cause**: Target machine OS reinstalled, IP reused, or Tailscale IP changed causing `~/.ssh/known_hosts` fingerprint mismatch
+- **Impact**: SSH connection refused by client, all remote operations (deploy-skill, diagnose, etc.) fail
+- **Fix**:
+  1. `ssh-keygen -R <host-ip>` precisely delete old fingerprint (don't delete entire known_hosts)
+  2. Reconnect and confirm new fingerprint: `ssh -o StrictHostKeyChecking=ask user@host`
+- **Prevention**: Proactively notify all clients to update fingerprints after OS reinstall; record each node's public key fingerprint in operations documentation
+- **First Found**: 2026-02-28
+
+### Too Many Authentication Failures
+- **Signature**: `Too many authentication failures` / `Received disconnect from ... Too many authentication failures`
+- **Root Cause**: SSH agent loaded too many keys (3-5+), client tries each until server disconnects (default `MaxAuthTries=6`)
+- **Impact**: Even if correct key exists, cannot login; often mixed with Host key errors causing investigation direction interference
+- **Fix**:
+  1. Force specify single key when connecting: `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 user@host`
+  2. Or configure in `~/.ssh/config`:
      ```
      Host gateway-*
        IdentitiesOnly yes
        IdentityFile ~/.ssh/id_ed25519
      ```
-  3. 清理 SSH agent 多余密钥: `ssh-add -D && ssh-add ~/.ssh/id_ed25519`
-- **预防**: 所有 OpenClaw 脚本和文档中的 ssh 调用统一加 `IdentitiesOnly=yes`
-- **首次发现**: 2026-02-28
+  3. Clean extra keys from SSH agent: `ssh-add -D && ssh-add ~/.ssh/id_ed25519`
+- **Prevention**: All OpenClaw scripts and documentation ssh calls consistently add `IdentitiesOnly=yes`
+- **First Found**: 2026-02-28
 
-### authorized_keys 权限错误
-- **签名**: `Permission denied (publickey)` + 服务端 `/var/log/auth.log` 显示 `Authentication refused: bad ownership or modes`
-- **根因**: `~/.ssh/authorized_keys` 文件权限不是 600，或 `~/.ssh` 目录权限不是 700，或所有者不正确
-- **关联症状**: 网络层和握手层全部正常，只有认证失败 — 这是最常见的 SSH 根因
-- **影响**: 公钥认证被 sshd 静默拒绝，客户端只看到 `Permission denied`
-- **修复**:
-  1. 修复权限:
+### authorized_keys Permission Error
+- **Signature**: `Permission denied (publickey)` + server `/var/log/auth.log` shows `Authentication refused: bad ownership or modes`
+- **Root Cause**: `~/.ssh/authorized_keys` file permission not 600, or `~/.ssh` directory permission not 700, or owner incorrect
+- **Associated Symptoms**: Network layer and handshake layer all normal, only auth fails — this is the most common SSH root cause
+- **Impact**: Public key auth silently refused by sshd, client only sees `Permission denied`
+- **Fix**:
+  1. Fix permissions:
      ```bash
      chmod 700 ~/.ssh
      chmod 600 ~/.ssh/authorized_keys
      chown -R $(whoami):staff ~/.ssh   # macOS
      ```
-  2. 确认 authorized_keys 内容是完整单行公钥 (无换行、无多余空格)
-  3. 本机回环验证: `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 $(whoami)@127.0.0.1`
-- **预防**: 用 `ssh-copy-id` 而非手动复制; 写入后立即验证权限
-- **首次发现**: 2026-02-28
+  2. Confirm authorized_keys content is complete single-line public key (no line breaks, no extra spaces)
+  3. Local loopback verification: `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 $(whoami)@127.0.0.1`
+- **Prevention**: Use `ssh-copy-id` instead of manual copy; verify permissions immediately after writing
+- **First Found**: 2026-02-28
 
 ---
 
-## Rate Limit / 配额
+## Rate Limit / Quota
 
-### LLM API 限流
-- **签名**: `429` / `rate.limit` / `Too Many Requests`
-- **根因**: API 调用频率超过 provider 限制
-- **影响**: Agent 响应延迟或失败
-- **修复**: 降低并发、升级 API plan、配置 fallback model
-- **首次发现**: 2026-02-24
+### LLM API Rate Limit
+- **Signature**: `429` / `rate.limit` / `Too Many Requests`
+- **Root Cause**: API call frequency exceeds provider limits
+- **Impact**: Agent response delayed or failed
+- **Fix**: Reduce concurrency, upgrade API plan, configure fallback model
+- **First Found**: 2026-02-24
 
 ---
 
-> **追加新模式时，请遵循以上格式，包含: 签名、根因、影响、修复、预防、首次发现日期。**
+> **When appending new patterns, follow the format above: include Signature, Root Cause, Impact, Fix, Prevention, First Found date.**

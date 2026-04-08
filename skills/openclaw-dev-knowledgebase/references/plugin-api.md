@@ -1,33 +1,34 @@
 # OpenClaw Plugin Architecture
 
-> 基准版本：对齐 2026-03-26 可公开访问的最新 OpenClaw 文档（`/plugins/manifest`、`/plugins/building-plugins`、`/plugins/bundles`、`/cli/plugins`、`/tools/plugin`）。
+<!-- Updated: 2026-04-08 -->
+<!-- Reference: aligned with 2026-03-26 latest OpenClaw docs -->
 
-## 先分清两类对象
+## Two Types of Installable Objects
 
-OpenClaw 当前支持两类可安装对象：
+OpenClaw supports two types of installable objects:
 
-1. **native OpenClaw plugin**
-   - 运行在 Gateway 进程内
-   - 使用 `openclaw.plugin.json`
-   - 通过 `package.json` 的 `openclaw.extensions` 声明入口
-   - 可以注册工具、渠道、Provider、Hooks、HTTP route、Service、Context engine 等完整能力
+1. **Native OpenClaw Plugin**
+   - Runs inside Gateway process
+   - Uses `openclaw.plugin.json`
+   - Declares entry via `package.json` `openclaw.extensions`
+   - Can register: tools, channels, providers, hooks, HTTP routes, services, context engines
 
-2. **compatible bundle**
-   - 来自 Claude / Codex / Cursor 生态
-   - 安装后显示为 `Format: bundle`
-   - OpenClaw 只映射受支持的内容（skills、部分 commands、支持的 hook packs、MCP 配置等）
-   - 不是 native plugin，不应强制要求 `openclaw.plugin.json`
+2. **Compatible Bundle**
+   - From Claude / Codex / Cursor ecosystem
+   - Shows as `Format: bundle` after install
+   - OpenClaw maps supported content (skills, partial commands, supported hook packs, MCP config)
+   - Not a native plugin — doesn't require `openclaw.plugin.json`
 
-## 检测优先级
+## Detection Priority
 
-OpenClaw 按以下顺序识别目录：
+OpenClaw detects directories in this order:
 
-1. `openclaw.plugin.json` 或有效 `package.json` + `openclaw.extensions` → 视为 native plugin
-2. `.codex-plugin/`、`.claude-plugin/`、`.cursor-plugin/` 或默认 Claude/Cursor 布局 → 视为 compatible bundle
+1. `openclaw.plugin.json` or valid `package.json` + `openclaw.extensions` → native plugin
+2. `.codex-plugin/`, `.claude-plugin/`, `.cursor-plugin/` or default Claude/Cursor layout → compatible bundle
 
-如果目录同时包含 native 和 bundle 标记，OpenClaw 优先走 native 路径。
+If a directory has both native and bundle markers, native takes priority.
 
-## Native Plugin 目录结构
+## Native Plugin Directory Structure
 
 ```text
 my-plugin/
@@ -40,15 +41,15 @@ my-plugin/
 └── src/                    # Optional: helper modules
 ```
 
-**关键规则**:
-1. native plugin 必须有 `openclaw.plugin.json`
-2. manifest 负责 discovery / config validation / auth metadata，不负责 entrypoint
-3. entrypoint 写在 `package.json` 的 `openclaw.extensions`
-4. `configSchema` 是必填字段，即使插件没有配置也要给空 schema
-5. 入口文件通常放包根目录；`openclaw.extensions` 必须指向包内实际文件
-6. OpenClaw 允许安装 compatible bundles，但 bundle 不是 native plugin
+**Key Rules**:
+1. Native plugin must have `openclaw.plugin.json`
+2. Manifest handles discovery / config validation / auth metadata, not entrypoint
+3. Entrypoint declared in `package.json` `openclaw.extensions`
+4. `configSchema` is **required** even if plugin has no config (use empty schema)
+5. Entry file usually in package root; `openclaw.extensions` must point to actual file in package
+6. OpenClaw allows compatible bundle installs, but bundle ≠ native plugin
 
-## Compatible Bundle 目录结构
+## Compatible Bundle Directory Structure
 
 ### Claude bundle
 
@@ -91,7 +92,7 @@ my-bundle/
 
 ## Plugin Manifest (`openclaw.plugin.json`)
 
-### 最小示例
+### Minimal Example
 
 ```json
 {
@@ -104,7 +105,7 @@ my-bundle/
 }
 ```
 
-### 完整示例
+### Full Example
 
 ```json
 {
@@ -150,31 +151,31 @@ my-bundle/
 }
 ```
 
-### 顶层字段速查
+### Top-Level Fields Quick Reference
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `id` | 是 | Canonical plugin id |
-| `configSchema` | 是 | 插件配置的 inline JSON Schema |
-| `enabledByDefault` | 否 | bundled plugin 是否默认启用 |
-| `kind` | 否 | 独占类别，如 `memory` / `context-engine` |
-| `channels` | 否 | 该插件声明的 channel ids |
-| `providers` | 否 | 该插件声明的 provider ids |
-| `providerAuthEnvVars` | 否 | provider auth 的 cheap env metadata |
-| `providerAuthChoices` | 否 | onboarding / CLI auth 选择元数据 |
-| `skills` | 否 | 相对 plugin root 的 skill 目录 |
-| `name` | 否 | 可读名称 |
-| `description` | 否 | 简短说明 |
-| `version` | 否 | 信息性版本号 |
-| `uiHints` | 否 | 配置字段的 UI label / placeholder / sensitivity hints |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Canonical plugin id |
+| `configSchema` | Yes | Inline JSON Schema for plugin config |
+| `enabledByDefault` | No | Whether bundled plugin is enabled by default |
+| `kind` | No | Exclusive category like `memory` / `context-engine` |
+| `channels` | No | Channel IDs declared by this plugin |
+| `providers` | No | Provider IDs declared by this plugin |
+| `providerAuthEnvVars` | No | Cheap env metadata for provider auth |
+| `providerAuthChoices` | No | Onboarding / CLI auth choice metadata |
+| `skills` | No | Skill directories relative to plugin root |
+| `name` | No | Human-readable name |
+| `description` | No | Short description |
+| `version` | No | Informational version number |
+| `uiHints` | No | UI label / placeholder / sensitivity hints for config fields |
 
-### 与旧说法冲突的点
+### Conflicting Legacy Terms
 
-- `version` 在 manifest 中是**合法可选字段**
-- `uiHints` 在 manifest 中是**合法可选字段**
-- manifest **不再声明 entrypoint**
-- `configSchema` **必须存在**，即使为空
-- `required` 不是被框架禁止的字段；它只是会参与配置校验，所以要按你的真实配置策略设计
+- `version` in manifest is **valid and optional**
+- `uiHints` in manifest is **valid and optional**
+- Manifest **no longer declares entrypoint**
+- `configSchema` **must exist** even if empty
+- `required` is not forbidden — it participates in config validation
 
 ## `package.json`
 
@@ -189,16 +190,16 @@ my-bundle/
 }
 ```
 
-### 关键规则
+### Key Rules
 
-- `openclaw.extensions` 必须指向包内具体文件，不能写成目录
-- 一个包可以暴露多个 extensions
-- `package.json` 的 `name` 不必与 manifest `id` 完全相同
-- 运行时身份以 manifest / entry export 的 plugin id 为准；安装后用 `openclaw plugins inspect <id>` 校验最终识别结果
+- `openclaw.extensions` must point to actual file in package, not directory
+- A package can expose multiple extensions
+- `package.json` `name` doesn't need to match manifest `id`
+- Runtime identity is determined by manifest / entry export plugin id; verify with `openclaw plugins inspect <id>`
 
 ## Entry Point
 
-### 推荐写法：`definePluginEntry`
+### Recommended: `definePluginEntry`
 
 ```typescript
 import { Type } from "@sinclair/typebox";
@@ -225,7 +226,7 @@ export default definePluginEntry({
 });
 ```
 
-### 兼容写法
+### Compatible Forms
 
 ```typescript
 export default function register(api) {
@@ -233,7 +234,7 @@ export default function register(api) {
 }
 ```
 
-或：
+Or:
 
 ```typescript
 export default {
@@ -245,36 +246,36 @@ export default {
 };
 ```
 
-## Plugin API 能力
+## Plugin API Capabilities
 
 ```typescript
-api.registerProvider({ /* 模型 Provider */ });
+api.registerProvider({ /* Model Provider */ });
 api.registerChannel({ plugin: myChannelPlugin });
 api.registerTool({ /* Agent tool */ });
 api.registerHook("command:new", handler, { name: "..." });
 api.registerSpeechProvider({ /* TTS / STT */ });
-api.registerMediaUnderstandingProvider({ /* 图像/音频分析 */ });
-api.registerImageGenerationProvider({ /* 生图 */ });
+api.registerMediaUnderstandingProvider({ /* Image/audio analysis */ });
+api.registerImageGenerationProvider({ /* Image generation */ });
 api.registerWebSearchProvider({ /* Web search */ });
 api.registerHttpRoute({ /* HTTP endpoint */ });
-api.registerCommand({ /* 自动回复命令 */ });
+api.registerCommand({ /* Auto-reply command */ });
 api.registerCli(({ program }) => { /* CLI */ });
 api.registerContextEngine({ /* Context engine */ });
-api.registerService({ /* 后台服务 */ });
+api.registerService({ /* Background service */ });
 ```
 
-## 发现与优先级
+## Discovery and Priority
 
-默认发现顺序：
+Default discovery order:
 
 1. `plugins.load.paths`
 2. `<workspace>/.openclaw/extensions/`
 3. `~/.openclaw/extensions/`
 4. `<openclaw>/extensions/`
 
-同 ID 冲突时，按上述顺序取胜。
+On ID conflicts, higher priority wins.
 
-## 配置
+## Configuration
 
 ```json5
 {
@@ -297,24 +298,24 @@ api.registerService({ /* 后台服务 */ });
 }
 ```
 
-## Compatible Bundles 当前映射能力
+## Compatible Bundles — Mapped Capabilities
 
-### 已支持
+### Supported
 
-- bundle skill roots → OpenClaw skills
+- Bundle skill roots → OpenClaw skills
 - Claude `commands/` / Cursor `.cursor/commands/` → skill content
-- 符合 OpenClaw 预期的 Codex hook packs
-- `.mcp.json` 中受支持的 stdio MCP 配置
-- Claude `settings.json` 的部分默认值
+- Codex hook packs that match OpenClaw expectations
+- `.mcp.json` supported stdio MCP configurations
+- Claude `settings.json` partial defaults
 
-### 仅检测，不执行
+### Detected Only, Not Executed
 
 - Claude `agents`
 - Claude / Cursor `hooks.json`
-- Cursor `.cursor/agents`、`.cursor/rules`
-- 其他未映射的 bundle metadata
+- Cursor `.cursor/agents`, `.cursor/rules`
+- Other unmapped bundle metadata
 
-## 管理命令
+## Management Commands
 
 ```bash
 openclaw plugins list
@@ -332,22 +333,22 @@ openclaw plugins disable <id>
 openclaw plugins doctor
 ```
 
-`info` 仍可用，但现在只是 `inspect` 的别名。
+`info` still works but is now just an alias for `inspect`.
 
-## 安全
+## Security
 
-- native plugins 在 Gateway 进程内运行，视为可信代码
-- npm 安装默认使用 `--ignore-scripts`
-- 插件安装与更新要按“执行代码”同等级别审查
-- `plugins.allow` 建议保持显式白名单
+- Native plugins run inside Gateway process — treated as trusted code
+- npm installs use `--ignore-scripts` by default
+- Plugin install/update requires same review level as executing code
+- `plugins.allow` should remain explicit allowlist
 
-## 开发工作流
+## Development Workflow
 
 ```bash
-# 1. 创建目录
+# 1. Create directory
 mkdir my-plugin && cd my-plugin
 
-# 2. 创建 manifest
+# 2. Create manifest
 cat > openclaw.plugin.json << 'EOF'
 {
   "id": "my-plugin",
@@ -361,7 +362,7 @@ cat > openclaw.plugin.json << 'EOF'
 }
 EOF
 
-# 3. 创建 package.json
+# 3. Create package.json
 cat > package.json << 'EOF'
 {
   "name": "@myorg/openclaw-my-plugin",
@@ -371,7 +372,7 @@ cat > package.json << 'EOF'
 }
 EOF
 
-# 4. 创建根目录入口
+# 4. Create root entry
 cat > index.ts << 'EOF'
 import { Type } from "@sinclair/typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -393,7 +394,19 @@ export default definePluginEntry({
 });
 EOF
 
-# 5. 链接安装并验证
+# 5. Link install and verify
 openclaw plugins install -l .
 openclaw plugins inspect my-plugin
 ```
+
+## Import Convention
+
+Import from specific subpaths only:
+
+```typescript
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
+import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/core";
+```
+
+Full list of 200+ subpaths available in: `scripts/lib/plugin-sdk-entrypoints.json`

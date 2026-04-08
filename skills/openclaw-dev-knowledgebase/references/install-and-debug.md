@@ -1,26 +1,28 @@
-# OpenClaw 安装和调试参考
+# OpenClaw Installation and Debug Reference
 
-## 安装
+<!-- Updated: 2026-04-08 -->
 
-### 快速安装
+## Installation
 
-| 平台 | 命令 |
-|------|------|
+### Quick Install
+
+| Platform | Command |
+|---------|--------|
 | **macOS / Linux** | `curl -fsSL https://openclaw.ai/install.sh \| bash` |
-| **macOS / Linux (无 root)** | `curl -fsSL https://openclaw.ai/install-cli.sh \| bash` |
+| **macOS / Linux (no root)** | `curl -fsSL https://openclaw.ai/install-cli.sh \| bash` |
 | **Windows (PowerShell)** | `iwr -useb https://openclaw.ai/install.ps1 \| iex` |
 
-### Installer 选项
+### Installer Options
 
-| 选项 | install.sh | install.ps1 |
-|------|-----------|-------------|
-| 跳过 onboard | `--no-onboard` | `-NoOnboard` |
-| Git 安装 | `--install-method git` | `-InstallMethod git` |
-| Beta 版 | `--beta` | `-Tag beta` |
+| Option | install.sh | install.ps1 |
+|--------|-----------|-------------|
+| Skip onboard | `--no-onboard` | `-NoOnboard` |
+| Git install | `--install-method git` | `-InstallMethod git` |
+| Beta | `--beta` | `-Tag beta` |
 | Dry run | `--dry-run` | `-DryRun` |
-| CI/自动化 | `--no-prompt --no-onboard` | `-NoOnboard` |
+| CI/automation | `--no-prompt --no-onboard` | `-NoOnboard` |
 
-### 从源码
+### From Source
 
 ```bash
 git clone https://github.com/openclaw/openclaw.git && cd openclaw
@@ -28,60 +30,165 @@ pnpm install && pnpm ui:build && pnpm build
 openclaw onboard
 ```
 
-### 平台特殊注意
+### Platform-Specific Notes
 
-**macOS**: 自动安装 Homebrew + Node 22。Gateway 安装为 LaunchAgent。
+**macOS**: Auto-installs Homebrew + Node 22. Gateway installed as LaunchAgent.
 
-**Linux**: 推荐 Node 运行时（Bun 有 WhatsApp/Telegram bugs）。Gateway 安装为 systemd user service：
+**Linux**: Node runtime recommended (not Bun — Bun has WhatsApp/Telegram bugs). Gateway installed as systemd user service:
 ```bash
 openclaw onboard --install-daemon
 systemctl --user enable --now openclaw-gateway.service
 ```
 
-**Windows**: 推荐 WSL2 (Ubuntu)：
+**Windows**: Recommended to run via **WSL2 (Ubuntu)**:
 ```powershell
 wsl --install -d Ubuntu-24.04
-# 启用 systemd:
+# Enable systemd:
 # /etc/wsl.conf → [boot] systemd=true
-# 然后 wsl --shutdown && 重新打开
-# 在 WSL 内同 Linux 安装
+# Then wsl --shutdown && reopen
+# Install in WSL same as Linux
 ```
 
-WSL 端口暴露 (PowerShell Admin):
+WSL port exposure (PowerShell Admin):
 ```powershell
 $WslIp = (wsl -d Ubuntu-24.04 -- hostname -I).Trim().Split(" ")[0]
 netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=18789 connectaddress=$WslIp connectport=18789
 ```
 
-## 调试
+---
 
-### 日志位置
+## Debugging
 
-| 平台 | 路径 |
-|------|------|
-| macOS | `~/Library/Logs/OpenClaw/` 或 `~/.openclaw/logs/` |
-| Linux | `journalctl --user -u openclaw-gateway` 或 `~/.openclaw/logs/` |
-| Windows/WSL | WSL 内同 Linux |
+### Debug Mode
 
-### 诊断命令
-
+Enable runtime overrides for debugging:
 ```bash
-openclaw doctor                     # 自动诊断 + 修复
-openclaw health                     # Gateway 健康
-openclaw status --deep --all        # 深度状态
-openclaw channels status --probe    # Channel 探测
-openclaw agents list --bindings     # Agent 路由
-openclaw plugins list               # Plugin 状态
-openclaw plugins doctor             # Plugin 诊断
+/debug
 ```
 
-### 常见问题
+This enables `commands.debug: true` in config, allowing temporary config overrides.
 
-| 问题 | 诊断 | 修复 |
-|------|------|------|
-| Gateway 不启动 | `openclaw doctor` | `lsof -i :18789` 检查端口 |
-| Channel 连接失败 | `openclaw channels status --probe` | 检查 token |
-| Skill 不加载 | `openclaw status --deep` | 检查 workspace 路径 |
-| npm EACCES (Linux) | `npm config get prefix` | 用 `install-cli.sh` |
-| openclaw 找不到 | `which openclaw` | 检查 PATH |
-| WSL portproxy 失效 | `netsh interface portproxy show all` | WSL IP 变化需重配 |
+### Logging
+
+```bash
+# Verbose logging
+openclaw gateway --verbose
+
+# Raw stream logging
+OPENCLAW_RAW_STREAM=1
+
+# Raw chunk logging
+PI_RAW_STREAM=1
+
+# Trace-level logging
+openclaw gateway --verbose --log-level trace
+```
+
+### Dev Profile
+
+Use `--dev` profile for isolated development:
+```bash
+openclaw --dev
+# Isolates to ~/.openclaw-dev, shifts default ports
+```
+
+### Dev Commands
+
+```bash
+# Watch mode for fast iteration
+pnpm gateway:watch
+
+# Dev bootstrap
+pnpm gateway:dev
+```
+
+### Gateway Port Conflicts
+
+If port is already in use:
+```bash
+openclaw gateway --force
+# Kills existing process on same port
+```
+
+---
+
+## Log Locations
+
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Logs/OpenClaw/` or `~/.openclaw/logs/` |
+| Linux | `journalctl --user -u openclaw-gateway` or `~/.openclaw/logs/` |
+| Windows/WSL | Same as Linux inside WSL |
+
+### Diagnostic Commands
+
+```bash
+openclaw doctor                     # Auto diagnose + fix
+openclaw health                     # Gateway health
+openclaw status --deep --all        # Deep status
+openclaw channels status --probe    # Channel probe
+openclaw agents list --bindings     # Agent routing
+openclaw plugins list               # Plugin status
+openclaw plugins doctor             # Plugin diagnostics
+```
+
+---
+
+## Common Issues
+
+| Issue | Diagnose | Fix |
+|-------|----------|-----|
+| Gateway won't start | `openclaw doctor` | `lsof -i :18789` check port |
+| Channel connection failed | `openclaw channels status --probe` | Check token |
+| Skill not loading | `openclaw status --deep` | Check workspace path |
+| npm EACCES (Linux) | `npm config get prefix` | Use `install-cli.sh` |
+| openclaw not found | `which openclaw` | Check PATH |
+| WSL portproxy invalid | `netsh interface portproxy show all` | WSL IP changed — reconfigure |
+| Config corruption | `jq . ~/.openclaw/openclaw.json` | Restore from `.bak` |
+| Auth failures | `openclaw status --all` | Re-run `openclaw onboard` |
+
+---
+
+## Gateway Startup
+
+```bash
+# Standard
+openclaw gateway --port 18789 --verbose --force
+
+# Force kill port conflict
+openclaw gateway --force
+
+# Health check
+openclaw gateway status
+
+# Deep status
+openclaw status --deep --all
+```
+
+### Channel Probe
+
+```bash
+openclaw channels status --probe
+```
+
+### Config Reload
+
+OpenClaw uses hybrid mode:
+1. Watch config file for changes
+2. Atomic swap to new config
+3. No restart needed for most changes
+
+---
+
+## Security Audit
+
+```bash
+# Quick audit
+openclaw security audit
+
+# Deep audit (includes Gateway probe)
+openclaw security audit --deep
+
+# Auto-fix issues
+openclaw security audit --fix
+```
