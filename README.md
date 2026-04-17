@@ -1,8 +1,8 @@
 # openclaw-dev
 
-**Give your Code Agent full OpenClaw full-stack development capabilities.**
+**Give your Code Agent full OpenClaw full-stack development and autonomous setup capabilities.**
 
-An OpenClaw development toolkit for AI code agents. Works as a Claude Code plugin by default, or as an OpenClaw-installable Claude-compatible bundle on other platforms.
+An OpenClaw development toolkit for AI code agents. Works as a Claude Code plugin by default, as a Codex-compatible bundle, and as a GitHub Copilot-guided workspace. It can also be installed into OpenClaw as a Claude-compatible bundle on other platforms.
 
 ## Quick Install
 
@@ -26,13 +26,17 @@ openclaw plugins inspect openclaw-dev
 
 OpenClaw recognizes this repo as a Claude-compatible bundle. Currently reliably mapped: `skills/`, `commands/` and other bundle capabilities. `agents/` remains detect-only and should not be used as an OpenClaw native agent plugin.
 
-### Other Platforms (Codex / Qwen / Gemini)
+### Codex / Qwen / Gemini
 
 ```bash
 cd openclaw-dev && bash install.sh
 ```
 
 Auto-detects installed agents and distributes to each platform's convention directory. On Windows, prefer `.\install.ps1`.
+
+### GitHub Copilot
+
+Use the repository as-is. Copilot reads the repo-level instruction file at `.github/copilot-instructions.md`, which points it to the OpenClaw setup workflow, docs index, and bundle compatibility rules.
 
 **Update (clean refresh):**
 - Unix-like: `cd openclaw-dev && git pull && bash install.sh`
@@ -51,6 +55,39 @@ Use natural language or `/commands` directly in your code agent:
 OpenClaw 架构原理              → Read architecture docs and internals
 创建一个 skill                 → Complete lifecycle: requirements → design → implement → validate → deploy
 ```
+
+## Autonomous OpenClaw Setup
+
+This repo now includes an explicit autonomous setup playbook for turning OpenClaw into a managed multi-agent system.
+
+- Primary command: `/setup-autonomous`
+- Integrity check: `/validate-autonomous-setup`
+- Main skill: `skills/openclaw-autonomous-setup`
+- Execution skill: `skills/openclaw-self-configurator`
+- ClawHub install skill: `skills/clawhub-skill-installer`
+- Research reference: `skills/openclaw-autonomous-setup/references/openclaw-setup-research.md`
+- Official docs map: `skills/openclaw-autonomous-setup/references/openclaw-doc-map.md`
+- Target-state blueprint: `skills/openclaw-autonomous-setup/references/setup-target-state.md`
+- Setup questionnaire: `skills/openclaw-autonomous-setup/references/setup-questionnaire.md`
+- GitHub Copilot prompt: `.github/prompts/openclaw-autonomous-setup.prompt.md`
+
+Suggested repo workflow:
+
+```text
+/setup-autonomous
+/validate-autonomous-setup
+bash plugins/qa/scripts/run-qa-tests.sh --quick
+```
+
+Target outcome:
+
+- one master agent orchestrating specialist agents
+- operator control through Telegram, Signal, or Control UI/WebChat
+- ClawHub-powered skill installation and updates
+- self-configuration rollout packs grounded in approved target state
+- validation and self-healing after each setup step
+- autonomous skill creation when no existing skill fits
+- reusable guidance for Claude Code, Codex, and GitHub Copilot in the same workspace
 
 ## Use Cases
 
