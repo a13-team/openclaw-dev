@@ -25,6 +25,12 @@ bash scripts/run-qa-tests.sh --agent <agent-id> --full
 bash scripts/codex-diagnose.sh --agent <agent-id> --quick
 ```
 
+模式语义：
+
+- `--quick`：运行 repo-level autonomous workflow integrity checks（轻量）
+- `--full`：运行完整 integrity checks，并在环境允许时附带 best-effort runtime probes
+- QA quick mode 会调用 `scripts/validate-autonomous-setup.sh --check-only`
+
 ## 关键输出
 
 - 报告：`plugins/qa/reports/qa-report-*.md`
