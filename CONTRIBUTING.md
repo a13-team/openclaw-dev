@@ -26,7 +26,7 @@ bash install.sh
 
 ### 1. Fork and Clone
 ```bash
-git clone https://github.com/YOUR_USERNAME/openclaw-dev.git
+git clone https://github.com/a13-team/openclaw-dev.git
 cd openclaw-dev
 ```
 
