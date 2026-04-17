@@ -1,12 +1,12 @@
 {
   "name": "openclaw-dev",
-  "version": "2.0.2",
-  "description": "Complete OpenClaw development toolkit. Create, validate, and deploy OpenClaw plugins, skills, and agents with guided workflows, comprehensive documentation, and automated validation.",
+  "version": "2.3.0",
+  "description": "Cross-agent OpenClaw development and autonomous setup toolkit for Claude Code, Codex, and GitHub Copilot. Research best-practice OpenClaw setups, drive multi-agent onboarding, install skills from ClawHub, validate repairs, and author missing skills.",
   "author": {
     "name": "Alexa Moronin"
   },
   "repository": "https://github.com/a13-team/openclaw-dev",
   "license": "MIT",
   "homepage": "https://github.com/a13-team/openclaw-dev#readme",
-  "keywords": ["openclaw", "clawdbot", "skill", "development", "agent", "plugin", "toolkit", "scaffolding"]
+  "keywords": ["openclaw", "clawdbot", "skill", "development", "agent", "plugin", "toolkit", "scaffolding", "codex", "github-copilot", "autonomous", "multi-agent"]
 }
